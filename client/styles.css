@@ -1,0 +1,42 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #1a1b26; color: #a9b1d6; min-height: 100vh; }
+.hidden { display: none !important; }
+
+#auth-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.auth-box { background: #24283b; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); width: 100%; max-width: 320px; }
+.auth-box h1 { margin: 0 0 1.5rem 0; color: #7aa2f7; font-size: 1.5rem; }
+#auth-form input { display: block; width: 100%; padding: 0.75rem 1rem; margin-bottom: 0.75rem; border: 1px solid #3b4261; border-radius: 8px; background: #1a1b26; color: #c0caf5; font-size: 1rem; }
+#auth-form input:focus { outline: none; border-color: #7aa2f7; }
+.auth-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+.auth-actions button { flex: 1; padding: 0.75rem; border: none; border-radius: 8px; font-size: 0.95rem; cursor: pointer; }
+#btn-login { background: #7aa2f7; color: #1a1b26; }
+#btn-register { background: #3b4261; color: #a9b1d6; }
+.auth-actions button:hover { opacity: 0.9; }
+.error { color: #f7768e; font-size: 0.9rem; margin-top: 0.75rem; min-height: 1.2em; }
+
+#chat-screen { display: flex; flex-direction: column; height: 100vh; }
+.chat-header { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; background: #24283b; border-bottom: 1px solid #3b4261; }
+#current-user { color: #9ece6a; font-weight: 600; }
+#current-room { color: #7aa2f7; font-size: 0.9rem; }
+#btn-logout { margin-left: auto; padding: 0.4rem 0.75rem; background: #565f89; border: none; border-radius: 6px; color: #c0caf5; cursor: pointer; font-size: 0.9rem; }
+
+.chat-layout { display: flex; flex: 1; overflow: hidden; }
+.rooms-panel { width: 220px; padding: 1rem; background: #24283b; border-right: 1px solid #3b4261; display: flex; flex-direction: column; gap: 0.5rem; }
+.rooms-panel h3 { margin: 0 0 0.5rem 0; font-size: 0.95rem; color: #7aa2f7; }
+#room-input { padding: 0.5rem; border: 1px solid #3b4261; border-radius: 6px; background: #1a1b26; color: #c0caf5; font-size: 0.9rem; }
+#btn-join-room { padding: 0.5rem; background: #7aa2f7; border: none; border-radius: 6px; color: #1a1b26; cursor: pointer; font-size: 0.9rem; }
+#room-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; }
+#room-list li { padding: 0.4rem 0; font-size: 0.9rem; color: #a9b1d6; }
+
+.chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+#messages { flex: 1; overflow-y: auto; list-style: none; margin: 0; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+#messages li { padding: 0.5rem 0.75rem; border-radius: 8px; max-width: 85%; word-break: break-word; }
+#messages li.system { color: #9ece6a; font-size: 0.85rem; }
+#messages li.own { align-self: flex-end; background: #7aa2f7; color: #1a1b26; }
+#messages li.other { align-self: flex-start; background: #3b4261; color: #c0caf5; }
+#messages li .sender { font-size: 0.8rem; opacity: 0.9; margin-bottom: 0.2rem; }
+
+#message-form { display: flex; gap: 0.5rem; padding: 1rem; background: #24283b; border-top: 1px solid #3b4261; }
+#message-input { flex: 1; padding: 0.75rem 1rem; border: 1px solid #3b4261; border-radius: 8px; background: #1a1b26; color: #c0caf5; font-size: 1rem; }
+#message-input:focus { outline: none; border-color: #7aa2f7; }
+#message-form button { padding: 0.75rem 1.25rem; background: #7aa2f7; border: none; border-radius: 8px; color: #1a1b26; font-weight: 600; cursor: pointer; }

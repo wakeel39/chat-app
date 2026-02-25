@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-time Chat</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <div id="auth-screen">
+      <div class="auth-box">
+        <h1>Chat</h1>
+        <form id="auth-form">
+          <input type="text" id="username" placeholder="Username" required autocomplete="username">
+          <input type="password" id="password" placeholder="Password" required autocomplete="current-password">
+          <div class="auth-actions">
+            <button type="submit" id="btn-login">Log in</button>
+            <button type="button" id="btn-register">Register</button>
+          </div>
+        </form>
+        <p id="auth-error" class="error"></p>
+      </div>
+    </div>
+
+    <div id="chat-screen" class="hidden">
+      <header class="chat-header">
+        <span id="current-user"></span>
+        <span id="current-room"></span>
+        <button id="btn-logout">Log out</button>
+      </header>
+      <div class="chat-layout">
+        <aside class="rooms-panel">
+          <h3>Rooms</h3>
+          <input type="text" id="room-input" placeholder="Room name">
+          <button id="btn-join-room">Join</button>
+          <ul id="room-list"></ul>
+        </aside>
+        <main class="chat-main">
+          <ul id="messages"></ul>
+          <form id="message-form">
+            <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+            <button type="submit">Send</button>
+          </form>
+        </main>
+      </div>
+    </div>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
