@@ -119,6 +119,11 @@ function connectSocket() {
     }
   });
 
+  socket.on('error', (data) => {
+    const msg = (data && data.message) || 'Something went wrong';
+    appendMessage({ system: true, text: msg });
+  });
+
   socket.on('authenticated', (data) => {
     currentUsername = data.username;
     currentUserEl.textContent = data.username;
@@ -130,6 +135,18 @@ function connectSocket() {
     currentRoomEl.textContent = 'Room: ' + data.room;
     addRoomToList(data.room);
     appendMessage({ system: true, text: 'You joined ' + data.room });
+  });
+
+  socket.on('message_history', (messages) => {
+    if (Array.isArray(messages)) {
+      messages.forEach((msg) => {
+        appendMessage({
+          username: msg.username,
+          text: msg.text,
+          own: msg.username === currentUsername,
+        });
+      });
+    }
   });
 
   socket.on('user_joined', (data) => {
