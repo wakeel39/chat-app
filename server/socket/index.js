@@ -1,13 +1,22 @@
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 const { setSession, removeSession } = require('./sessions');
+const { wrapWithRateLimit } = require('./rateLimit');
+const ChatMessage = require('../models/ChatMessage');
 
 /**
- * No rate limiting on socket events (deliberate issue #2) — flood attack possible.
- * Default Socket.io config, no Redis adapter (deliberate issue #3) — single node only.
- * No message persistence to MongoDB (deliberate issue #4) — messages lost on crash.
- * No room cleanup logic (deliberate issue #5) — ghost rooms accumulate.
+ * If the room has zero sockets, remove it from the adapter so empty rooms don't accumulate.
+ * Safe to call after socket.leave(room) or in setImmediate after disconnect.
  */
+function pruneRoomIfEmpty(io, roomName) {
+  if (!roomName) return;
+  const adapter = io.sockets.adapter;
+  const room = adapter.rooms.get(roomName);
+  if (room && room.size === 0) {
+    adapter.rooms.delete(roomName);
+  }
+}
+
 function attachSocket(io) {
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
@@ -23,49 +32,62 @@ function attachSocket(io) {
   });
 
   io.on('connection', (socket) => {
-    // In-memory session (issue #1)
-    setSession(socket.userId, socket.id);
+    setSession(socket.userId, socket.id).catch((err) => console.error('Session set error', err));
 
     socket.emit('authenticated', { username: socket.username });
 
-    socket.on('join_room', (roomName) => {
+    socket.on('join_room', wrapWithRateLimit(async function (roomName) {
       if (!roomName || typeof roomName !== 'string') return;
       const room = roomName.trim().slice(0, 64) || 'general';
       socket.join(room);
       socket.currentRoom = room;
       socket.to(room).emit('user_joined', { username: socket.username, room });
       socket.emit('room_joined', { room });
-    });
+      const recent = await ChatMessage.find({ room }).sort({ createdAt: -1 }).limit(50).lean();
+      const history = recent.reverse().map((doc) => ({
+        username: doc.username,
+        text: doc.text,
+        room: doc.room,
+        ts: doc.createdAt.getTime(),
+      }));
+      socket.emit('message_history', history);
+    }, 'join_room'));
 
-    socket.on('chat_message', (payload) => {
+    socket.on('chat_message', wrapWithRateLimit(async function (payload) {
       const text = (payload && payload.text) ? String(payload.text).slice(0, 2000) : '';
       if (!text) return;
       const room = socket.currentRoom || 'general';
-      // No persistence to MongoDB (issue #4)
-      const message = {
+      const doc = await ChatMessage.create({
+        room,
+        userId: socket.userId,
         username: socket.username,
         text,
-        room,
-        ts: Date.now(),
+      });
+      const message = {
+        username: doc.username,
+        text: doc.text,
+        room: doc.room,
+        ts: doc.createdAt.getTime(),
       };
       io.to(room).emit('chat_message', message);
-    });
+    }, 'chat_message'));
 
-    socket.on('leave_room', () => {
+    socket.on('leave_room', wrapWithRateLimit(function () {
       const room = socket.currentRoom;
       if (room) {
         socket.leave(room);
         socket.to(room).emit('user_left', { username: socket.username, room });
         socket.currentRoom = null;
+        pruneRoomIfEmpty(io, room);
       }
-      // No room cleanup (issue #5) — empty rooms never removed
-    });
+    }, 'leave_room'));
 
     socket.on('disconnect', () => {
-      removeSession(socket.userId, socket.id);
+      removeSession(socket.userId, socket.id).catch((err) => console.error('Session remove error', err));
       const room = socket.currentRoom;
       if (room) {
         socket.to(room).emit('user_left', { username: socket.username, room });
+        setImmediate(() => pruneRoomIfEmpty(io, room));
       }
     });
   });

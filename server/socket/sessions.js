@@ -1,24 +1,26 @@
-// IN-MEMORY socket session store (deliberate issue #1).
-// Will break when running multiple server instances.
-const socketSessions = new Map(); // userId -> Set of socketIds
+// Redis-backed socket session store — shared across all server instances.
+// Key: socket:user:{userId} = Redis SET of socket IDs.
+const { getRedis } = require('../db/redis');
 
-function setSession(userId, socketId) {
-  if (!socketSessions.has(userId)) {
-    socketSessions.set(userId, new Set());
-  }
-  socketSessions.get(userId).add(socketId);
+const KEY_PREFIX = 'socket:user:';
+
+async function setSession(userId, socketId) {
+  const redis = await getRedis();
+  await redis.sAdd(KEY_PREFIX + userId, socketId);
 }
 
-function removeSession(userId, socketId) {
-  const set = socketSessions.get(userId);
-  if (set) {
-    set.delete(socketId);
-    if (set.size === 0) socketSessions.delete(userId);
-  }
+async function removeSession(userId, socketId) {
+  const redis = await getRedis();
+  const key = KEY_PREFIX + userId;
+  await redis.sRem(key, socketId);
+  const count = await redis.sCard(key);
+  if (count === 0) await redis.del(key);
 }
 
-function getSocketsByUser(userId) {
-  return socketSessions.get(userId) || new Set();
+async function getSocketsByUser(userId) {
+  const redis = await getRedis();
+  const members = await redis.sMembers(KEY_PREFIX + userId);
+  return new Set(members);
 }
 
 module.exports = { setSession, removeSession, getSocketsByUser };
