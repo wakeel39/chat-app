@@ -1,0 +1,28 @@
+# Optional: enable when using ALB/NLB or Ingress controller (e.g. AWS Load Balancer Controller)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chat-app-ingress
+  namespace: chat-app
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-app
+                port:
+                  number: 80
+  # Optional: uncomment for TLS
+  # tls:
+  #   - hosts:
+  #       - chat.example.com
+  #     secretName: chat-app-tls

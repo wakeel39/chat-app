@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: chat-app
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - deployment-mongo.yaml
+  - deployment-redis.yaml
+  - deployment-app.yaml
+  # - ingress.yaml  # Uncomment when using AWS ALB Ingress Controller
+
+images:
+  # Override in Argo CD Application spec.source.kustomize.images or CI
+  - name: ghcr.io/your-org/chat-app
+    newName: ghcr.io/your-org/chat-app   # Replace with ECR: 123456789.dkr.ecr.region.amazonaws.com/chat-app
+    newTag: latest

@@ -1,0 +1,155 @@
+# Build, deploy to Argo CD (no Git commit), then tag repo with version (1.0.1, 1.0.2, ...)
+name: Deploy to EKS with Argo CD
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: chat-app
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.next-version.outputs.version }}
+    steps:
+      - name: Checkout (with tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next version (1.0.1, 1.0.2, ...)
+        id: next-version
+        run: |
+          # Find latest tag matching 1.0.* or v1.0.*
+          LATEST=$(git tag -l '1.0.*' 'v1.0.*' 2>/dev/null | sed 's/^v//' | sort -V | tail -n1)
+          if [ -z "$LATEST" ]; then
+            echo "version=1.0.1" >> $GITHUB_OUTPUT
+          else
+            # Increment patch (e.g. 1.0.1 -> 1.0.2)
+            MAJOR=$(echo "$LATEST" | cut -d. -f1)
+            MINOR=$(echo "$LATEST" | cut -d. -f2)
+            PATCH=$(echo "$LATEST" | cut -d. -f3)
+            PATCH=$((PATCH + 1))
+            echo "version=${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
+          fi
+          echo "Next version: ${{ steps.next-version.outputs.version }}"
+
+  update-html-and-build:
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image_uri: ${{ steps.image-uri.outputs.uri }}
+      version: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Inject version into HTML (after checkout, not committed)
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          if [ -f client/index.html ]; then
+            sed -i "s|<body>|<body data-version=\"${VERSION}\">|" client/index.html
+            sed -i "s|<title>Real-time Chat</title>|<title>Real-time Chat (v${VERSION})</title>|" client/index.html
+          fi
+          echo "Injected version ${VERSION} into client/index.html (build-only, not committed)"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image (tag = version)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ needs.version.outputs.version }}
+            ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Set image URI output
+        id: image-uri
+        run: |
+          echo "uri=${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ needs.version.outputs.version }}" >> $GITHUB_OUTPUT
+
+  deploy-argocd:
+    needs: update-html-and-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Argo CD CLI
+        run: |
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd && sudo mv argocd /usr/local/bin/
+
+      - name: Deploy to Argo CD (set image tag and sync, no Git commit)
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+          VERSION: ${{ needs.update-html-and-build.outputs.version }}
+        run: |
+          if [ -z "$ARGOCD_SERVER" ] || [ -z "$ARGOCD_AUTH_TOKEN" ]; then
+            echo "ARGOCD_SERVER or ARGOCD_AUTH_TOKEN not set; skipping Argo CD deploy"
+            exit 0
+          fi
+          # Use ECR_REGISTRY if set (e.g. 123456789.dkr.ecr.us-east-1.amazonaws.com), else derive from image URI
+          if [ -n "$ECR_REGISTRY" ]; then
+            REPO="$ECR_REGISTRY/chat-app"
+          else
+            echo "Set ECR_REGISTRY secret (e.g. 123456789.dkr.ecr.us-east-1.amazonaws.com) for Argo CD deploy"
+            exit 0
+          fi
+          argocd app set chat-app \
+            --helm-set image.repository="$REPO" \
+            --helm-set image.tag="$VERSION" \
+            --server "$ARGOCD_SERVER" \
+            --auth-token "$ARGOCD_AUTH_TOKEN" \
+            --insecure
+          argocd app sync chat-app \
+            --server "$ARGOCD_SERVER" \
+            --auth-token "$ARGOCD_AUTH_TOKEN" \
+            --insecure
+          argocd app wait chat-app --health \
+            --server "$ARGOCD_SERVER" \
+            --auth-token "$ARGOCD_AUTH_TOKEN" \
+            --timeout 300 \
+            --insecure || true
+
+  tag-version:
+    needs: [version, update-html-and-build, deploy-argocd]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag commit with version and push (no code commit)
+        run: |
+          VERSION="${{ needs.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${VERSION} already exists, skipping"
+            exit 0
+          fi
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"

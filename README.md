@@ -31,6 +31,16 @@ Requires **MongoDB** and **Redis** running (default: `localhost:27017`, `localho
 
 Open http://localhost:3000 — register or log in, then chat. Join rooms via the sidebar.
 
+## Deploy to Kubernetes (EKS + Argo CD, Helm)
+
+To run this app on **Amazon EKS** with **Argo CD** and a **Bastion server**, see **[docs/EKS-ARGOCD-DEPLOYMENT.md](docs/EKS-ARGOCD-DEPLOYMENT.md)**. The repo includes:
+
+- **`helm/chat-app/`** – Helm chart (app, MongoDB, Redis)
+- **`argocd/application.yaml`** – Argo CD Application (Helm source)
+- **`.github/workflows/build-and-deploy.yml`** – On push: compute version (1.0.1, 1.0.2…), inject version into HTML (build only), build & push image, deploy via Argo CD (no Git commit), then tag the repo with `v<version>`
+
+**Local Kubernetes (Kind):** To install and run the app on **Kind** (Kubernetes in Docker) on your machine, see **[docs/KIND-DEPLOYMENT.md](docs/KIND-DEPLOYMENT.md)**.
+
 ---
 
 ## Known issues (for next iteration)

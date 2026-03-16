@@ -1,0 +1,55 @@
+# Default values for chat-app
+# Image is overridden by CI (Argo CD --helm-set) or set here for local install
+image:
+  repository: ghcr.io/your-org/chat-app
+  tag: latest
+  pullPolicy: Always
+
+# App replica count
+replicaCount: 1
+
+# App env (ConfigMap)
+config:
+  PORT: "3000"
+  MONGO_URI: "mongodb://mongo:27017/chatapp"
+  REDIS_URL: "redis://redis:6379"
+
+# JWT secret - override via --set secret.jwtSecret or use existingSecret
+secret:
+  jwtSecret: "CHANGE_ME_IN_PRODUCTION"
+  # existingSecret: "chat-app-secret"  # use existing K8s secret name
+
+# Resources for the chat-app container
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+# MongoDB (in-cluster)
+mongo:
+  enabled: true
+  image: mongo:7
+  storage: 5Gi
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Redis (in-cluster)
+redis:
+  enabled: true
+  image: redis:7
+  storage: 1Gi
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
