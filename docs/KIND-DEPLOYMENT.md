@@ -743,6 +743,25 @@ sudo systemctl restart docker
 
 Then try `docker run hello-world` again (after logging out and back in if you just ran `usermod`).
 
+### 404, Socket timeout, WebSocket connection failed (browser)
+
+**Errors:** `Failed to load resource: 404 (Not Found)`, `Socket error: timeout`, `WebSocket connection to 'ws://&lt;IP&gt;:3000/socket.io/...' failed`
+
+**Cause:** You are opening the app on the **wrong port**, or the **firewall/security group** is blocking the port.
+
+- The app is exposed as **NodePort 30080** (see [manifests](manifests/04-service-chat-app.yaml)). The browser and Socket.io must use that port.
+- If you open `http://54.202.223.201:3000`, the page may load from somewhere else (e.g. cache) but the Socket.io client tries to connect to **port 3000** on that IP. Nothing is listening on port 3000 on the public IP, so WebSocket and API calls fail or time out.
+- A **404** for `/socket.io/socket.io.js` or other resources usually means the request went to the wrong host/port (e.g. port 3000 where no server is running).
+
+**Fix:**
+
+1. **Use the NodePort in the URL:** open the app at **`http://&lt;YOUR_IP&gt;:30080`** (e.g. `http://54.202.223.201:30080`), not port 3000.
+2. **Open the port in the firewall:** on EC2, in the **security group** allow **inbound TCP 30080** (or whatever NodePort you use) from your IP or `0.0.0.0/0` for testing.
+3. **Confirm the service:** run `kubectl get svc -n chat-app chat-app` and check that the port shows as `80:30080/TCP`. Use the same port (30080) in your browser.
+4. **No proxy/redirect to 3000:** if you use a load balancer or reverse proxy, it must forward to the **NodePort** (30080) or to the cluster Service, and the browser URL should use the port the proxy listens on (so the Socket.io client uses that same origin).
+
+After that, reload the page at `http://&lt;IP&gt;:30080` and Socket.io should connect to `ws://&lt;IP&gt;:30080/socket.io/...`.
+
 ### Docker connect error on Windows (dockerDesktopLinuxEngine pipe not found)
 
 **Error:** `error during connect: Head "http://...dockerDesktopLinuxEngine/_ping": open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified`
