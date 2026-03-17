@@ -1,0 +1,49 @@
+# Chat app Deployment - image: sardarabdulwakeel/chat-app:latest
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-app
+  namespace: chat-app
+  labels:
+    app: chat-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chat-app
+  template:
+    metadata:
+      labels:
+        app: chat-app
+    spec:
+      containers:
+        - name: chat-app
+          image: sardarabdulwakeel/chat-app:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: chat-app-config
+            - secretRef:
+                name: chat-app-secret
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10

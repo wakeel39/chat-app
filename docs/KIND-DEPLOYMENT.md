@@ -144,13 +144,21 @@ Then install with Helm using `--set image.repository=sardarabdulwakeel/chat-app`
 
 ### Deploy using only the image (no Git clone)
 
-If you **don’t want to clone the repo**, you can deploy using only the Docker image **`sardarabdulwakeel/chat-app:latest`** from Docker Hub. Apply the manifest from the repo (no clone on your machine):
+If you **don’t want to clone the repo**, you can deploy using only the Docker image **`sardarabdulwakeel/chat-app:latest`** from Docker Hub.
+
+**Option 1 – Single all-in-one file (works from URL, no clone):**
 
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/wakeel39/chat-app/main/manifests/chat-app-from-image.yaml
 ```
 
-If your repo uses **`master`** as the default branch, replace `main` with `master` in the URL. This creates the `chat-app` namespace, the app (image `sardarabdulwakeel/chat-app:latest`), MongoDB, Redis, and their services. Then wait for pods and access the app:
+**Option 2 – Separate manifest files (when you have the repo or downloaded `manifests/`):**
+
+```bash
+kubectl apply -f manifests/
+```
+
+If your repo uses **`master`** as the default branch, replace `main` with `master` in the URL. The manifests create the `chat-app` namespace, the app (image `sardarabdulwakeel/chat-app:latest`), MongoDB, Redis, and their services. Individual files are in `manifests/` (e.g. `00-namespace.yaml`, `01-configmap.yaml`, …); see [manifests/README.md](manifests/README.md). Then wait for pods and access the app:
 
 ```bash
 kubectl get pods -n chat-app -w
