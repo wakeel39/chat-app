@@ -762,6 +762,22 @@ Then try `docker run hello-world` again (after logging out and back in if you ju
 
 After that, reload the page at `http://&lt;IP&gt;:30080` and Socket.io should connect to `ws://&lt;IP&gt;:30080/socket.io/...`.
 
+### Liveness/readiness probe failed, Back-off restarting failed container
+
+**Errors:** `Liveness probe failed: ... connection refused`, `Readiness probe failed: ... connection refused`, `Back-off restarting failed container`
+
+**Cause:** The app only starts listening on port 3000 **after** it connects to MongoDB and Redis. If probes run too soon, or if MongoDB/Redis aren’t ready yet, the probe gets “connection refused” and Kubernetes restarts the container repeatedly.
+
+**Fix (already in manifests):** The manifests use (1) an **init container** that waits for `mongo:27017` and `redis:6379` before the main container starts, and (2) a **startup probe** (up to ~2 minutes) so the app has time to connect and listen. Redeploy with the updated manifests:
+
+```bash
+kubectl apply -f manifests/03-deployment-chat-app.yaml
+# or
+kubectl apply -f manifests/chat-app-from-image.yaml
+```
+
+If you still see restarts, check that MongoDB and Redis pods are Running and that the chat-app pod can resolve `mongo` and `redis` (same namespace). Check app logs: `kubectl logs -n chat-app deployment/chat-app -c chat-app`.
+
 ### Docker connect error on Windows (dockerDesktopLinuxEngine pipe not found)
 
 **Error:** `error during connect: Head "http://...dockerDesktopLinuxEngine/_ping": open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified`
