@@ -37,8 +37,10 @@ async function start() {
 
   attachSocket(io);
 
-  httpServer.listen(config.port, () => {
-    console.log(`Server running at http://localhost:${config.port}`);
+  const port = config.port;
+  const host = '0.0.0.0';
+  httpServer.listen(port, host, () => {
+    console.log(`Server running at http://${host}:${port}`);
   });
 }
 
