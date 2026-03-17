@@ -1,0 +1,5 @@
+# Namespace for chat-app (apply first)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chat-app

@@ -1,0 +1,66 @@
+# Chat app Deployment - image: sardarabdulwakeel/chat-app:latest
+# Init container waits for MongoDB and Redis so the app can start without connection refused
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-app
+  namespace: chat-app
+  labels:
+    app: chat-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chat-app
+  template:
+    metadata:
+      labels:
+        app: chat-app
+    spec:
+      initContainers:
+        - name: wait-for-deps
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z mongo 27017; do echo "waiting for mongo"; sleep 2; done
+              until nc -z redis 6379; do echo "waiting for redis"; sleep 2; done
+              echo "mongo and redis ready"
+      containers:
+        - name: chat-app
+          image: sardarabdulwakeel/chat-app:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: chat-app-config
+            - secretRef:
+                name: chat-app-secret
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          startupProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            periodSeconds: 20
+            failureThreshold: 3

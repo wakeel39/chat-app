@@ -1,0 +1,10 @@
+# ConfigMap for chat-app env vars
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chat-app-config
+  namespace: chat-app
+data:
+  PORT: "3000"
+  MONGO_URI: "mongodb://mongo:27017/chatapp"
+  REDIS_URL: "redis://redis:6379"

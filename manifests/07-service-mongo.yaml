@@ -1,0 +1,17 @@
+# MongoDB Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: chat-app
+  labels:
+    app: mongo
+spec:
+  type: ClusterIP
+  ports:
+    - port: 27017
+      targetPort: 27017
+      protocol: TCP
+      name: mongo
+  selector:
+    app: mongo

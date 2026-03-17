@@ -1,0 +1,6 @@
+Chat app is deployed. Version: {{ .Values.image.tag }}
+
+  Get the app URL:
+  kubectl port-forward -n {{ include "chat-app.name" . }} svc/chat-app 3000:80
+
+  Then open http://localhost:3000

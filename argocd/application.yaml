@@ -1,0 +1,34 @@
+# Argo CD Application - deploy chat-app via Helm (no Git commits; image tag set by CI)
+# Apply: kubectl apply -f argocd/application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: chat-app
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/wakeel39/chat-app.git
+    path: helm/chat-app
+    targetRevision: main
+    helm:
+      valueFiles:
+        - values.yaml
+      # Image overridden by CI: argocd app set chat-app --helm-set image.tag=1.0.1 --helm-set image.repository=ECR_URI
+      parameters:
+        - name: image.repository
+          value: "123456789012.dkr.ecr.us-east-1.amazonaws.com/chat-app"
+        - name: image.tag
+          value: "latest"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: chat-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
