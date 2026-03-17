@@ -1,7 +1,7 @@
 # Default values for chat-app
-# Image is overridden by CI (Argo CD --helm-set) or set here for local install
+# Image on Docker Hub: sardarabdulwakeel/chat-app:latest (override via CI or --set)
 image:
-  repository: ghcr.io/your-org/chat-app
+  repository: sardarabdulwakeel/chat-app
   tag: latest
   pullPolicy: Always
 

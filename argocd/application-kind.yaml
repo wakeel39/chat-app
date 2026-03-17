@@ -1,0 +1,38 @@
+# Argo CD Application for Kind – chat-app from Docker Hub (sardarabdulwakeel/chat-app)
+# Apply on your Kind cluster after installing Argo CD: kubectl apply -f argocd/application-kind.yaml
+# Push to main → GitHub Actions builds, pushes to Docker Hub, then runs: argocd app set chat-app --helm-set image.tag=latest && argocd app sync
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: chat-app
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/wakeel39/chat-app.git
+    path: helm/chat-app
+    targetRevision: main
+    helm:
+      valueFiles:
+        - values.yaml
+      parameters:
+        - name: image.repository
+          value: "sardarabdulwakeel/chat-app"
+        - name: image.tag
+          value: "latest"
+        - name: image.pullPolicy
+          value: "Always"
+        - name: secret.jwtSecret
+          value: "dev-secret-change-me"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: chat-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true

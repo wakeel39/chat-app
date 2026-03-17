@@ -1,6 +1,7 @@
-# Auto-deploy to Kind server on push to main/master
-# Requires either: (1) Self-hosted runner with label "kind" on the Kind server, or (2) SSH to Kind server (secrets)
-name: Kind Server Deployment
+# Auto-deploy to Kind on push to main: build → push to Docker Hub → Argo CD sync
+# Image: sardarabdulwakeel/chat-app:latest on Docker Hub
+# Argo CD on Kind cluster deploys the Helm chart; this workflow triggers sync with the new image.
+name: Kind Server Deployment (Argo CD)
 
 on:
   push:
@@ -9,16 +10,15 @@ on:
 
 env:
   KIND_CLUSTER_NAME: chat-app
-  IMAGE_NAME: chat-app
+  DOCKERHUB_IMAGE: sardarabdulwakeel/chat-app
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
     outputs:
-      image: ${{ steps.meta.outputs.tags }}
+      image_tag: ${{ steps.meta.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,23 +26,22 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
+      - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract metadata and build
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.DOCKERHUB_IMAGE }}
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
             type=sha,prefix=
 
-      - name: Build and push
+      - name: Build and push to Docker Hub
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -51,31 +50,67 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # Option A: Run on a self-hosted runner that is on the Kind server (label: kind)
+  # Deploy to Kind via Argo CD: set image and sync (no Git commit)
+  # Enable: set variable KIND_ARGOCD_DEPLOY = 'true' and secrets ARGOCD_SERVER, ARGOCD_AUTH_TOKEN
+  deploy-kind-argocd:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && vars.KIND_ARGOCD_DEPLOY == 'true' }}
+    steps:
+      - name: Install Argo CD CLI
+        run: |
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd && sudo mv argocd /usr/local/bin/
+
+      - name: Deploy to Kind via Argo CD (set image and sync)
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+          DOCKERHUB_IMAGE: ${{ env.DOCKERHUB_IMAGE }}
+        run: |
+          if [ -z "$ARGOCD_SERVER" ] || [ -z "$ARGOCD_AUTH_TOKEN" ]; then
+            echo "ARGOCD_SERVER or ARGOCD_AUTH_TOKEN not set; skipping Argo CD deploy"
+            exit 0
+          fi
+          argocd app set chat-app \
+            --helm-set image.repository=$DOCKERHUB_IMAGE \
+            --helm-set image.tag=latest \
+            --server "$ARGOCD_SERVER" \
+            --auth-token "$ARGOCD_AUTH_TOKEN" \
+            --insecure
+          argocd app sync chat-app \
+            --server "$ARGOCD_SERVER" \
+            --auth-token "$ARGOCD_AUTH_TOKEN" \
+            --insecure
+          argocd app wait chat-app --health \
+            --server "$ARGOCD_SERVER" \
+            --auth-token "$ARGOCD_AUTH_TOKEN" \
+            --timeout 300 \
+            --insecure || true
+          echo "Deployed to Kind via Argo CD."
+
+  # Option B: Self-hosted runner on Kind server – use Argo CD to deploy
   deploy-kind-self-hosted:
     needs: build-and-push
     runs-on: [self-hosted, kind]
     if: ${{ !cancelled() }}
     steps:
-      - name: Log in to GHCR (pull image on Kind server)
+      - name: Deploy via Argo CD (on Kind server)
+        env:
+          DOCKERHUB_IMAGE: ${{ env.DOCKERHUB_IMAGE }}
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          kubectl port-forward -n argocd svc/argocd-server 8080:443 &
+          PF_PID=$!
+          sleep 5
+          export ARGOCD_OPTS='--insecure'
+          argocd login localhost:8080 --username admin --password $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) $ARGOCD_OPTS
+          argocd app set chat-app --helm-set image.repository=$DOCKERHUB_IMAGE --helm-set image.tag=latest $ARGOCD_OPTS
+          argocd app sync chat-app $ARGOCD_OPTS
+          argocd app wait chat-app --health --timeout 300 $ARGOCD_OPTS || true
+          kill $PF_PID 2>/dev/null || true
+          echo "Deployed to Kind via Argo CD (self-hosted)."
 
-      - name: Pull and load image into Kind
-        run: |
-          IMAGE="ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest"
-          docker pull $IMAGE
-          kind load docker-image $IMAGE --name ${{ env.KIND_CLUSTER_NAME }}
-          echo "Loaded $IMAGE into Kind cluster ${{ env.KIND_CLUSTER_NAME }}"
-
-      - name: Restart chat-app deployment
-        run: |
-          kubectl set image deployment/chat-app chat-app=ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest -n chat-app
-          kubectl rollout status deployment/chat-app -n chat-app --timeout=120s
-
-  # Option B: SSH into a remote Kind server and run deploy (no self-hosted runner).
-  # Enable by adding a repo variable: KIND_SSH_DEPLOY = 'true' (Settings → Actions → Variables).
-  # Then add secrets: KIND_SERVER_HOST, SSH_PRIVATE_KEY, and optionally KIND_SERVER_USER.
+  # Option C: SSH to Kind server – deploy via Argo CD
   deploy-kind-ssh:
     needs: build-and-push
     runs-on: ubuntu-latest
@@ -88,16 +123,15 @@ jobs:
           chmod 600 ~/.ssh/key.pem
           ssh-keyscan -H "${{ secrets.KIND_SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Deploy to Kind server via SSH
+      - name: Deploy to Kind via Argo CD (SSH)
         env:
-          GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
-          KIND_CLUSTER_NAME: ${{ env.KIND_CLUSTER_NAME }}
+          DOCKERHUB_IMAGE: ${{ env.DOCKERHUB_IMAGE }}
         run: |
           USER="${{ secrets.KIND_SERVER_USER || 'ec2-user' }}"
           ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=accept-new "${USER}@${{ secrets.KIND_SERVER_HOST }}" \
-            "docker pull $GHCR_IMAGE && \
-             kind load docker-image $GHCR_IMAGE --name $KIND_CLUSTER_NAME && \
-             kubectl set image deployment/chat-app chat-app=$GHCR_IMAGE -n chat-app && \
-             kubectl rollout status deployment/chat-app -n chat-app --timeout=120s && \
-             echo 'Deployed to Kind.'"
+            "kubectl port-forward -n argocd svc/argocd-server 8080:443 & sleep 5 && \
+             argocd login localhost:8080 --username admin --password \$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d) --insecure && \
+             argocd app set chat-app --helm-set image.repository=$DOCKERHUB_IMAGE --helm-set image.tag=latest --insecure && \
+             argocd app sync chat-app --insecure && \
+             echo 'Deployed to Kind via Argo CD (SSH).'"
         continue-on-error: true

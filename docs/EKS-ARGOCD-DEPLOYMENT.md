@@ -126,6 +126,31 @@ Optional (if not using OIDC): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and 
 
 Update the workflow file `.github/workflows/build-and-deploy.yml` if your region or ECR repo name differ (e.g. `ECR_REPOSITORY`, `AWS_REGION`).
 
+### 2.4 Using Docker Hub instead of ECR
+
+If you use **Docker Hub** instead of Amazon ECR for the chat-app image (this project’s image: **`sardarabdulwakeel/chat-app:latest`**):
+
+1. **Build and push locally (or in CI):**
+   ```bash
+   docker build -t chat-app:latest .
+   docker tag chat-app:latest sardarabdulwakeel/chat-app:latest
+   docker login
+   docker push sardarabdulwakeel/chat-app:latest
+   ```
+   To use a different Docker Hub username, replace `sardarabdulwakeel` with yours.
+
+2. **In the Argo CD Application** ([argocd/application.yaml](argocd/application.yaml)): set `image.repository` to your Docker Hub image:
+   - `sardarabdulwakeel/chat-app` or
+   - `docker.io/sardarabdulwakeel/chat-app`
+
+3. **If you want the GitHub Actions workflow to push to Docker Hub** instead of ECR, you would need to change `.github/workflows/build-and-deploy.yml` to:
+   - Remove (or skip) the ECR login and push steps.
+   - Add Docker Hub login using secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (use a Docker Hub access token, not your password).
+   - Push to `YOUR_DOCKERHUB_USERNAME/chat-app:<tag>`.
+   - Set `ARGOCD_SERVER`, `ARGOCD_AUTH_TOKEN`, and in the deploy step use `image.repository=sardarabdulwakeel/chat-app` (no `ECR_REGISTRY`).
+
+4. **Image pull on EKS:** For a private Docker Hub repo, create a Kubernetes secret of type `docker-registry` in the `chat-app` namespace and reference it in the Helm chart or Deployment as `imagePullSecrets`. For public Docker Hub images, no secret is needed.
+
 ---
 
 ## Part 3: Install Argo CD on EKS
@@ -192,7 +217,7 @@ argocd login localhost:8080 --insecure
    Edit `argocd/application.yaml`:
    - `spec.source.repoURL`: your GitHub repo URL (e.g. `https://github.com/YOUR_ORG/chat-app.git`).
    - `spec.source.path`: `helm/chat-app` (Helm chart).
-   - Under `spec.source.helm.parameters`, set `image.repository` to your ECR URI (e.g. `123456789012.dkr.ecr.us-east-1.amazonaws.com/chat-app`). The workflow overrides `image.tag` on each run.
+   - Under `spec.source.helm.parameters`, set `image.repository` to your ECR URI (e.g. `123456789012.dkr.ecr.us-east-1.amazonaws.com/chat-app`), or to your **Docker Hub** image (e.g. `sardarabdulwakeel/chat-app`). The workflow overrides `image.tag` on each run.
 
 2. **JWT secret**  
    Create the Kubernetes secret with a real JWT secret (do **not** commit this value):

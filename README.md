@@ -39,7 +39,9 @@ To run this app on **Amazon EKS** with **Argo CD** and a **Bastion server**, see
 - **`argocd/application.yaml`** – Argo CD Application (Helm source)
 - **`.github/workflows/build-and-deploy.yml`** – On push: compute version (1.0.1, 1.0.2…), inject version into HTML (build only), build & push image, deploy via Argo CD (no Git commit), then tag the repo with `v<version>`
 
-**Local Kubernetes (Kind):** To install and run the app on **Kind** (Kubernetes in Docker) on your machine, see **[docs/KIND-DEPLOYMENT.md](docs/KIND-DEPLOYMENT.md)**.
+**Kind auto-deploy:** Push to **main** → workflow builds the image, pushes to **Docker Hub** (`sardarabdulwakeel/chat-app:latest`), then deploys to **Kind** via **Argo CD**. See [KIND-DEPLOYMENT.md](docs/KIND-DEPLOYMENT.md) Part 8 (one-time Argo CD + Application setup, then set GitHub secrets/variables).
+
+**Local Kubernetes (Kind):** To install and run the app on **Kind** (Kubernetes in Docker) on your machine, see **[docs/KIND-DEPLOYMENT.md](docs/KIND-DEPLOYMENT.md)**. To deploy **without cloning** the repo (image only): `kubectl apply -f https://raw.githubusercontent.com/wakeel39/chat-app/main/manifests/chat-app-from-image.yaml`
 
 ---
 
