@@ -4,10 +4,7 @@
 name: Kind Server Deployment (Argo CD)
 
 on:
-  push:
-    branches: [main, master]
   workflow_dispatch:
-
 env:
   KIND_CLUSTER_NAME: chat-app
   DOCKERHUB_IMAGE: sardarabdulwakeel/chat-app
@@ -52,69 +49,69 @@ jobs:
 
   # Deploy to Kind via Argo CD: set image and sync (no Git commit)
   # Enable: set variable KIND_ARGOCD_DEPLOY = 'true' and secrets ARGOCD_SERVER, ARGOCD_AUTH_TOKEN
-  deploy-kind-argocd:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    if: ${{ !cancelled() && vars.KIND_ARGOCD_DEPLOY == 'true' }}
-    steps:
-      - name: Install Argo CD CLI
-        run: |
-          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          chmod +x argocd && sudo mv argocd /usr/local/bin/
+  # deploy-kind-argocd:
+  #   needs: build-and-push
+  #   runs-on: ubuntu-latest
+  #   if: ${{ !cancelled() }}
+  #   steps:
+  #     - name: Install Argo CD CLI
+  #       run: |
+  #         curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+  #         chmod +x argocd && sudo mv argocd /usr/local/bin/
 
-      - name: Deploy to Kind via Argo CD (set image and sync)
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
-          DOCKERHUB_IMAGE: ${{ env.DOCKERHUB_IMAGE }}
-        run: |
-          if [ -z "$ARGOCD_SERVER" ] || [ -z "$ARGOCD_AUTH_TOKEN" ]; then
-            echo "ARGOCD_SERVER or ARGOCD_AUTH_TOKEN not set; skipping Argo CD deploy"
-            exit 0
-          fi
-          argocd app set chat-app \
-            --helm-set image.repository=$DOCKERHUB_IMAGE \
-            --helm-set image.tag=latest \
-            --server "$ARGOCD_SERVER" \
-            --auth-token "$ARGOCD_AUTH_TOKEN" \
-            --insecure
-          argocd app sync chat-app \
-            --server "$ARGOCD_SERVER" \
-            --auth-token "$ARGOCD_AUTH_TOKEN" \
-            --insecure
-          argocd app wait chat-app --health \
-            --server "$ARGOCD_SERVER" \
-            --auth-token "$ARGOCD_AUTH_TOKEN" \
-            --timeout 300 \
-            --insecure || true
-          echo "Deployed to Kind via Argo CD."
+  #     - name: Deploy to Kind via Argo CD (set image and sync)
+  #       env:
+  #         ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+  #         ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+  #         DOCKERHUB_IMAGE: ${{ env.DOCKERHUB_IMAGE }}
+  #       run: |
+  #         if [ -z "$ARGOCD_SERVER" ] || [ -z "$ARGOCD_AUTH_TOKEN" ]; then
+  #           echo "ARGOCD_SERVER or ARGOCD_AUTH_TOKEN not set; skipping Argo CD deploy"
+  #           exit 0
+  #         fi
+  #         argocd app set chat-app \
+  #           --helm-set image.repository=$DOCKERHUB_IMAGE \
+  #           --helm-set image.tag=latest \
+  #           --server "$ARGOCD_SERVER" \
+  #           --auth-token "$ARGOCD_AUTH_TOKEN" \
+  #           --insecure
+  #         argocd app sync chat-app \
+  #           --server "$ARGOCD_SERVER" \
+  #           --auth-token "$ARGOCD_AUTH_TOKEN" \
+  #           --insecure
+  #         argocd app wait chat-app --health \
+  #           --server "$ARGOCD_SERVER" \
+  #           --auth-token "$ARGOCD_AUTH_TOKEN" \
+  #           --timeout 300 \
+  #           --insecure || true
+  #         echo "Deployed to Kind via Argo CD."
 
-  # Option B: Self-hosted runner on Kind server – use Argo CD to deploy
-  deploy-kind-self-hosted:
-    needs: build-and-push
-    runs-on: [self-hosted, kind]
-    if: ${{ !cancelled() }}
-    steps:
-      - name: Deploy via Argo CD (on Kind server)
-        env:
-          DOCKERHUB_IMAGE: ${{ env.DOCKERHUB_IMAGE }}
-        run: |
-          kubectl port-forward -n argocd svc/argocd-server 8080:443 &
-          PF_PID=$!
-          sleep 5
-          export ARGOCD_OPTS='--insecure'
-          argocd login localhost:8080 --username admin --password $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) $ARGOCD_OPTS
-          argocd app set chat-app --helm-set image.repository=$DOCKERHUB_IMAGE --helm-set image.tag=latest $ARGOCD_OPTS
-          argocd app sync chat-app $ARGOCD_OPTS
-          argocd app wait chat-app --health --timeout 300 $ARGOCD_OPTS || true
-          kill $PF_PID 2>/dev/null || true
-          echo "Deployed to Kind via Argo CD (self-hosted)."
+  # # Option B: Self-hosted runner on Kind server – use Argo CD to deploy
+  # deploy-kind-self-hosted:
+  #   needs: build-and-push
+  #   runs-on: [self-hosted, kind]
+  #   if: ${{ !cancelled() }}
+  #   steps:
+  #     - name: Deploy via Argo CD (on Kind server)
+  #       env:
+  #         DOCKERHUB_IMAGE: ${{ env.DOCKERHUB_IMAGE }}
+  #       run: |
+  #         kubectl port-forward -n argocd svc/argocd-server 8080:443 &
+  #         PF_PID=$!
+  #         sleep 5
+  #         export ARGOCD_OPTS='--insecure'
+  #         argocd login localhost:8080 --username admin --password $(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d) $ARGOCD_OPTS
+  #         argocd app set chat-app --helm-set image.repository=$DOCKERHUB_IMAGE --helm-set image.tag=latest $ARGOCD_OPTS
+  #         argocd app sync chat-app $ARGOCD_OPTS
+  #         argocd app wait chat-app --health --timeout 300 $ARGOCD_OPTS || true
+  #         kill $PF_PID 2>/dev/null || true
+  #         echo "Deployed to Kind via Argo CD (self-hosted)."
 
   # Option C: SSH to Kind server – deploy via Argo CD
   deploy-kind-ssh:
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: ${{ !cancelled() && vars.KIND_SSH_DEPLOY == 'true' }}
+    if: ${{ !cancelled() }}
     steps:
       - name: Set up SSH
         run: |

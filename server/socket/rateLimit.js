@@ -20,7 +20,13 @@ function getBucket() {
 }
 
 function getIp(socket) {
-  return socket.handshake.address || socket.conn?.remoteAddress || 'unknown';
+  if (!socket) return 'unknown';
+  const addr = socket.handshake?.address || socket.conn?.remoteAddress || 'unknown';
+  // Normalize IPv6-mapped IPv4 addresses like ::ffff:192.168.0.1
+  if (typeof addr === 'string' && addr.startsWith('::ffff:')) {
+    return addr.slice(7);
+  }
+  return addr;
 }
 
 async function incrAndCheck(key, limit) {
@@ -52,12 +58,17 @@ async function checkRateLimit(socket, eventName) {
 }
 
 function wrapWithRateLimit(handler, eventName) {
-  return async (...args) => {
+  return async function (...args) {
     const socket = this;
-    const allowed = await checkRateLimit(socket, eventName);
-    if (!allowed) {
-      socket.emit('error', { message: 'Rate limit exceeded. Please slow down.' });
-      return;
+    try {
+      const allowed = await checkRateLimit(socket, eventName);
+      if (!allowed) {
+        socket.emit('error', { message: 'Rate limit exceeded. Please slow down.' });
+        return;
+      }
+    } catch (err) {
+      // In case Redis or rate limit logic fails, do not crash the socket handler
+      console.error('Rate limit error:', err);
     }
     return handler.apply(this, args);
   };

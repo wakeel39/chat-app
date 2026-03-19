@@ -2,10 +2,8 @@
 name: Deploy to EKS with Argo CD
 
 on:
-  push:
-    branches: [main, master]
   workflow_dispatch:
-
+    
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: chat-app
