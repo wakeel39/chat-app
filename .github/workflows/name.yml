@@ -8,6 +8,8 @@ jobs:
    steps:
      - name : "ArgoCd login"
        run: |
+              sudo curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+              sudo chmod +x /usr/local/bin/argocd
               argocd login "${{ env.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
               argocd account get-user-info --insecure
   
