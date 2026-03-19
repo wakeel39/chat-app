@@ -1,8 +1,7 @@
 name: "argocd"
 on :
  workflow_dispatch:
-env:
-  ARGOCD_SERVER : env.ARGOCD_SERVER
+
 jobs:
  test:
    runs-on: ubuntu-latest
@@ -11,7 +10,7 @@ jobs:
        run: |
               sudo curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
               sudo chmod +x /usr/local/bin/argocd
-              argocd login "${{ env.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --grpc-web --insecure
+              argocd login "${{ vars.ARGOCD_SERVER }}" --username admin --password "${{ vars.ARGOCD_PASSWORD }}" --grpc-web --insecure
               argocd account get-user-info --insecure
   
     
