@@ -124,7 +124,20 @@ jobs:
             --helm-set image.repository="${DOCKERHUB_IMAGE}" \
             --helm-set image.tag="${VERSION}" \
             --insecure
-          argocd app sync "${ARGOCD_APP_NAME}" --insecure
+
+          # If a previous sync/operation is stuck, terminate it and retry sync.
+          for attempt in 1 2 3 4 5; do
+            echo "Argo CD sync attempt ${attempt}/5"
+            if argocd app sync "${ARGOCD_APP_NAME}" --insecure; then
+              break
+            fi
+
+            # Common failure: "another operation is already in progress"
+            echo "Sync failed; trying to terminate any in-progress operation and retry..."
+            argocd app terminate-op "${ARGOCD_APP_NAME}" --insecure || true
+            sleep $((attempt * 10))
+          done
+
           argocd app wait "${ARGOCD_APP_NAME}" --health --timeout 300 --insecure || true
 
      
