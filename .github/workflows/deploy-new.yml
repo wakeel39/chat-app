@@ -1,0 +1,117 @@
+name: Kind Server Deployment (Argo CD)
+
+on:
+  workflow_dispatch:
+
+env:
+  DOCKERHUB_IMAGE: sardarabdulwakeel/chat-app
+  ARGOCD_APP_NAME: chat-app
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout (with tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next version (1.0.x)
+        id: next-version
+        shell: bash
+        run: |
+          # Find latest tag matching 1.0.* or v1.0.*
+          LATEST=$(git tag -l '1.0.*' 'v1.0.*' 2>/dev/null | sed 's/^v//' | sort -V | tail -n1)
+          if [ -z "$LATEST" ]; then
+            VERSION="1.0.1"
+          else
+            # Increment patch (e.g. 1.0.1 -> 1.0.2)
+            MAJOR=$(echo "$LATEST" | cut -d. -f1)
+            MINOR=$(echo "$LATEST" | cut -d. -f2)
+            PATCH=$(echo "$LATEST" | cut -d. -f3)
+            VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Next version: ${VERSION}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create Helm release folder and update helm snapshot
+        shell: bash
+        run: |
+          VERSION="${{ steps.next-version.outputs.version }}"
+          mkdir -p ".helm-releases/${VERSION}"
+          cp "helm/chat-app/values.yaml" ".helm-releases/${VERSION}/values.yaml"
+
+          # Update only the snapshot (Argo CD is updated via argocd CLI below)
+          sed -i -E "s/^(\\s*tag:)\\s*.*/\\1 ${VERSION}/" ".helm-releases/${VERSION}/values.yaml"
+
+      - name: Build and push Docker image (version + latest)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_IMAGE }}:${{ steps.next-version.outputs.version }}
+            ${{ env.DOCKERHUB_IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install Argo CD CLI
+        shell: bash
+        run: |
+          sudo curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo chmod +x /usr/local/bin/argocd
+
+      - name: Login and update Argo CD (set new image tag)
+        shell: bash
+        run: |
+          VERSION="${{ steps.next-version.outputs.version }}"
+
+          # LOGIN AND DEPLOY TO ARGOCD
+          argocd login ${{ secrets.ARGOCD_SERVER }} --username admin --password ${{ secrets.ARGOCD_PASSWORD }}
+          argocd app set "${ARGOCD_APP_NAME}" \
+            --helm-set image.repository="${DOCKERHUB_IMAGE}" \
+            --helm-set image.tag="${VERSION}"
+          argocd app sync "${ARGOCD_APP_NAME}"
+          argocd app wait "${ARGOCD_APP_NAME}" --health --timeout 300 || true
+
+      - name: Create/push git tag
+        shell: bash
+        run: |
+          VERSION="${{ steps.next-version.outputs.version }}"
+          TAG="v${VERSION}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            echo "Git tag ${TAG} already exists, skipping push"
+          else
+            git tag "${TAG}"
+            git push origin "${TAG}"
+          fi
+
+      - name: Create GitHub release (generate notes)
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.next-version.outputs.version }}"
+          TAG="v${VERSION}"
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists, skipping"
+          else
+            gh release create "${TAG}" --title "${TAG}" --generate-notes
+          fi
