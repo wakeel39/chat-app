@@ -102,16 +102,16 @@ jobs:
             git push origin "${TAG}"
           fi
 
-      - name: Create GitHub release (generate notes)
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ steps.next-version.outputs.version }}"
-          TAG="v${VERSION}"
+      # - name: Create GitHub release (generate notes)
+      #   shell: bash
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   run: |
+      #     VERSION="${{ steps.next-version.outputs.version }}"
+      #     TAG="v${VERSION}"
 
-          if gh release view "${TAG}" >/dev/null 2>&1; then
-            echo "Release ${TAG} already exists, skipping"
-          else
-            gh release create "${TAG}" --title "${TAG}" --generate-notes
-          fi
+      #     if gh release view "${TAG}" >/dev/null 2>&1; then
+      #       echo "Release ${TAG} already exists, skipping"
+      #     else
+      #       gh release create "${TAG}" --title "${TAG}" --generate-notes
+      #     fi
