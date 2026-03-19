@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/wakeel39/chat-app.git
     path: helm/chat-app
-    targetRevision: HEAD
+    targetRevision: "<RELEASE_TAG>"
     helm:
       valueFiles:
         - values.yaml

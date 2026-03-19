@@ -74,24 +74,6 @@ jobs:
           sudo curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
           sudo chmod +x /usr/local/bin/argocd
 
-      - name: Login and update Argo CD (set new image tag)
-        shell: bash
-        run: |
-          VERSION="${{ steps.next-version.outputs.version }}"
-
-          # LOGIN AND DEPLOY TO ARGOCD
-          #argocd login "${{ secrets.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
-          argocd login "${{ secrets.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
-          argocd account get-user-info --insecure
-          if ! argocd app get "${ARGOCD_APP_NAME}" --insecure >/dev/null 2>&1; then
-            argocd app create --file "argocd/application-kind.yaml" --upsert --insecure
-          fi
-          argocd app set "${ARGOCD_APP_NAME}" \
-            --helm-set image.repository="${DOCKERHUB_IMAGE}" \
-            --helm-set image.tag="${VERSION}" \
-            --insecure
-          argocd app sync "${ARGOCD_APP_NAME}" --insecure
-          argocd app wait "${ARGOCD_APP_NAME}" --health --timeout 300 --insecure || true
 
       - name: Create/push git tag
         shell: bash
@@ -109,16 +91,44 @@ jobs:
             git push origin "${TAG}"
           fi
 
-      # - name: Create GitHub release (generate notes)
-      #   shell: bash
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #   run: |
-      #     VERSION="${{ steps.next-version.outputs.version }}"
-      #     TAG="v${VERSION}"
+      - name: Create GitHub release for tag
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.next-version.outputs.version }}"
+          TAG="v${VERSION}"
 
-      #     if gh release view "${TAG}" >/dev/null 2>&1; then
-      #       echo "Release ${TAG} already exists, skipping"
-      #     else
-      #       gh release create "${TAG}" --title "${TAG}" --generate-notes
-      #     fi
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists, skipping"
+          else
+            gh release create "${TAG}" --title "${TAG}" --generate-notes
+          fi
+
+      - name: Login and update Argo CD (set new image tag)
+        shell: bash
+        run: |
+          VERSION="${{ steps.next-version.outputs.version }}"
+          TAG="v${VERSION}"
+
+          # LOGIN AND DEPLOY TO ARGOCD
+          #argocd login "${{ secrets.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
+          argocd login "${{ secrets.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
+          argocd account get-user-info --insecure
+          if ! argocd app get "${ARGOCD_APP_NAME}" --insecure >/dev/null 2>&1; then
+            # Render targetRevision placeholder with the newly created git tag
+            sed "s|<RELEASE_TAG>|${TAG}|g" "argocd/application-kind.yaml" > /tmp/application-kind.rendered.yaml
+            argocd app create --file "/tmp/application-kind.rendered.yaml" --upsert --insecure
+          fi
+          argocd app set "${ARGOCD_APP_NAME}" \
+            --helm-set image.repository="${DOCKERHUB_IMAGE}" \
+            --helm-set image.tag="${VERSION}" \
+            --insecure
+          argocd app sync "${ARGOCD_APP_NAME}" --insecure
+          argocd app wait "${ARGOCD_APP_NAME}" --health --timeout 300 --insecure || true
+
+     
+
+      
+
+      
