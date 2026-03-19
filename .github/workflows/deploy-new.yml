@@ -79,7 +79,8 @@ jobs:
           VERSION="${{ steps.next-version.outputs.version }}"
 
           # LOGIN AND DEPLOY TO ARGOCD
-          argocd login ${{ secrets.ARGOCD_SERVER }} --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
+          #argocd login ${{ secrets.ARGOCD_SERVER }} --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
+          argocd login  ${{env.ARGOCD_SERVER}} --username admin --password ${{env.ARGOCD_PASSWORD}} --insecure
           argocd account get-user-info --insecure
           argocd app set "${ARGOCD_APP_NAME}" \
             --helm-set image.repository="${DOCKERHUB_IMAGE}" \
