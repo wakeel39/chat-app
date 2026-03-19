@@ -19,7 +19,7 @@ spec:
       # Image overridden by CI: argocd app set chat-app --helm-set image.tag=1.0.1 --helm-set image.repository=ECR_URI
       parameters:
         - name: image.repository
-          value: "123456789012.dkr.ecr.us-east-1.amazonaws.com/chat-app"
+          value: "sardarabdulwakeel/chat-app"
         - name: image.tag
           value: "latest"
   destination:
