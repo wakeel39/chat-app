@@ -79,12 +79,13 @@ jobs:
           VERSION="${{ steps.next-version.outputs.version }}"
 
           # LOGIN AND DEPLOY TO ARGOCD
-          argocd login ${{ secrets.ARGOCD_SERVER }} --username admin --password ${{ secrets.ARGOCD_PASSWORD }}
+          argocd login "${{ secrets.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
           argocd app set "${ARGOCD_APP_NAME}" \
             --helm-set image.repository="${DOCKERHUB_IMAGE}" \
-            --helm-set image.tag="${VERSION}"
-          argocd app sync "${ARGOCD_APP_NAME}"
-          argocd app wait "${ARGOCD_APP_NAME}" --health --timeout 300 || true
+            --helm-set image.tag="${VERSION}" \
+            --insecure
+          argocd app sync "${ARGOCD_APP_NAME}" --insecure
+          argocd app wait "${ARGOCD_APP_NAME}" --health --timeout 300 --insecure || true
 
       - name: Create/push git tag
         shell: bash
