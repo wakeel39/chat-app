@@ -1,0 +1,14 @@
+name: "argocd"
+on :
+ workflow_dispatch:
+
+jobs:
+ test:
+   runs-on: ubuntu-latest
+   steps:
+     - name : "ArgoCd login"
+       run: |
+              argocd login "${{ env.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
+              argocd account get-user-info --insecure
+  
+    
