@@ -1,4 +1,4 @@
-name: Kind Server Deployment (Argo CD)
+name: Kind Server Deployment NEW(Argo CD)
 
 on:
   workflow_dispatch:
