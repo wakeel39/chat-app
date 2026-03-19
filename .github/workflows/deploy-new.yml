@@ -81,8 +81,11 @@ jobs:
 
           # LOGIN AND DEPLOY TO ARGOCD
           #argocd login "${{ secrets.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
-          argocd login "${{ vars.ARGOCD_SERVER }}" --username admin --password "${{ vars.ARGOCD_PASSWORD }}" --insecure
+          argocd login "${{ secrets.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
           argocd account get-user-info --insecure
+          if ! argocd app get "${ARGOCD_APP_NAME}" --insecure >/dev/null 2>&1; then
+            argocd app create --file "argocd/application-kind.yaml" --upsert --insecure
+          fi
           argocd app set "${ARGOCD_APP_NAME}" \
             --helm-set image.repository="${DOCKERHUB_IMAGE}" \
             --helm-set image.tag="${VERSION}" \
