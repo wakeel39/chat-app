@@ -1,4 +1,4 @@
-Chat app is deployed. Version: {{ .Values.image.tag }}
+Chat app is deployed. Version: {{ required "image.tag is required" .Values.image.tag }}
 
   Get the app URL:
   kubectl port-forward -n {{ include "chat-app.name" . }} svc/chat-app 3000:80

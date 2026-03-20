@@ -1,23 +1,38 @@
-# Default values for chat-app
-# Image on Docker Hub: sardarabdulwakeel/chat-app:latest (override via CI or --set)
-image:
-  repository: sardarabdulwakeel/chat-app
-  tag: latest
-  pullPolicy: Always
+# Base values for chat-app (shared by all environments).
+#
+# -----------------------------------------------------------------------------
+# Argo CD: full defaults live inline in argocd/application-kind.yaml and
+# argocd/application.yaml (helm.values + helm.parameters, feedus-style).
+#
+# Local Helm (no Argo): merge with an overlay that supplies image + secret, e.g.
+#   helm template chat-app . -f values.yaml -f values-application-kind.yaml
+# -----------------------------------------------------------------------------
 
 # App replica count
 replicaCount: 1
+
+# Main chat-app Service (ClusterIP in-cluster; NodePort for EC2 + external AWS LB)
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+  # When type is NodePort, omit for auto-assigned port or set 30000-32767 for a fixed port (ALB/NLB target group)
+  nodePort: null
+
+# Optional Ingress (e.g. ingress-nginx on NodePort; still ClusterIP behind controller)
+ingress:
+  enabled: false
+  className: nginx
+  host: chat.example.com
+  annotations: {}
+  tls: false
+  tlsSecretName: chat-app-tls
 
 # App env (ConfigMap)
 config:
   PORT: "3000"
   MONGO_URI: "mongodb://mongo:27017/chatapp"
   REDIS_URL: "redis://redis:6379"
-
-# JWT secret - override via --set secret.jwtSecret or use existingSecret
-secret:
-  jwtSecret: "CHANGE_ME_IN_PRODUCTION"
-  # existingSecret: "chat-app-secret"  # use existing K8s secret name
 
 # Resources for the chat-app container
 resources:

@@ -53,9 +53,10 @@ jobs:
           VERSION="${{ steps.next-version.outputs.version }}"
           mkdir -p ".helm-releases/${VERSION}"
           cp "helm/chat-app/values.yaml" ".helm-releases/${VERSION}/values.yaml"
+          cp "helm/chat-app/values-application-kind.yaml" ".helm-releases/${VERSION}/values-application-kind.yaml"
 
-          # Update only the snapshot (Argo CD is updated via argocd CLI below)
-          sed -i -E "s/^(\\s*tag:)\\s*.*/\\1 ${VERSION}/" ".helm-releases/${VERSION}/values.yaml"
+          # Snapshot: image.tag lives in values-application-kind.yaml (Argo Kind overlay)
+          sed -i -E "s/^(\\s*tag:)\\s*.*/\\1 ${VERSION}/" ".helm-releases/${VERSION}/values-application-kind.yaml"
 
       - name: Build and push Docker image (version + latest)
         uses: docker/build-push-action@v5
@@ -110,33 +111,85 @@ jobs:
         run: |
           VERSION="${{ steps.next-version.outputs.version }}"
           TAG="v${VERSION}"
+          RENDERED="/tmp/application-kind.rendered.yaml"
+          sed "s|<RELEASE_TAG>|${TAG}|g" "argocd/application-kind.yaml" > "${RENDERED}"
 
           # LOGIN AND DEPLOY TO ARGOCD
-          #argocd login "${{ secrets.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
           argocd login "${{ secrets.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
           argocd account get-user-info --insecure
-          if ! argocd app get "${ARGOCD_APP_NAME}" --insecure >/dev/null 2>&1; then
-            # Render targetRevision placeholder with the newly created git tag
-            sed "s|<RELEASE_TAG>|${TAG}|g" "argocd/application-kind.yaml" > /tmp/application-kind.rendered.yaml
-            argocd app create --file "/tmp/application-kind.rendered.yaml" --upsert --insecure
+
+          # Issue: "application is deleting" — the Application CR has metadata.deletionTimestamp set.
+          # argocd app sync / app set are rejected until deletion finishes OR finalizers are cleared.
+          # terminate-op does not help (no sync operation is running).
+          echo "Checking Application is not stuck in deleting state..."
+          for round in $(seq 1 36); do
+            if ! raw=$(argocd app get "${ARGOCD_APP_NAME}" -o json --insecure 2>/dev/null); then
+              echo "Application not found — will create."
+              break
+            fi
+            dt=$(echo "$raw" | jq -r '.metadata.deletionTimestamp // empty')
+            if [ -z "$dt" ]; then
+              echo "Application exists and is active."
+              break
+            fi
+            echo "Application is deleting (deletionTimestamp=${dt}); waiting 10s (${round}/36)..."
+            sleep 10
+          done
+
+          if raw=$(argocd app get "${ARGOCD_APP_NAME}" -o json --insecure 2>/dev/null); then
+            dt=$(echo "$raw" | jq -r '.metadata.deletionTimestamp // empty')
+            if [ -n "$dt" ]; then
+              echo "::error::Application still in deleting state after wait. Clear finalizers (cluster-admin), then re-run:"
+              echo "  kubectl patch application ${ARGOCD_APP_NAME} -n argocd -p '{\"metadata\":{\"finalizers\":[]}}' --type=merge"
+              exit 1
+            fi
           fi
+
+          if ! argocd app get "${ARGOCD_APP_NAME}" --insecure >/dev/null 2>&1; then
+            argocd app create --file "${RENDERED}" --upsert --insecure
+          fi
+
           argocd app set "${ARGOCD_APP_NAME}" \
             --helm-set image.repository="${DOCKERHUB_IMAGE}" \
             --helm-set image.tag="${VERSION}" \
             --insecure
 
-          # If a previous sync/operation is stuck, terminate it and retry sync.
+          SYNC_OK=false
           for attempt in 1 2 3 4 5; do
             echo "Argo CD sync attempt ${attempt}/5"
-            if argocd app sync "${ARGOCD_APP_NAME}" --insecure; then
+            if sync_out=$(argocd app sync "${ARGOCD_APP_NAME}" --insecure 2>&1); then
+              echo "$sync_out"
+              SYNC_OK=true
               break
             fi
+            echo "$sync_out"
 
-            # Common failure: "another operation is already in progress"
-            echo "Sync failed; trying to terminate any in-progress operation and retry..."
-            argocd app terminate-op "${ARGOCD_APP_NAME}" --insecure || true
+            if echo "$sync_out" | grep -qi 'application is deleting'; then
+              echo "Sync hit deleting state again — waiting for deletion to complete, then recreate if needed..."
+              for r in $(seq 1 36); do
+                if ! raw=$(argocd app get "${ARGOCD_APP_NAME}" -o json --insecure 2>/dev/null); then
+                  argocd app create --file "${RENDERED}" --upsert --insecure
+                  break
+                fi
+                dt=$(echo "$raw" | jq -r '.metadata.deletionTimestamp // empty')
+                [ -z "$dt" ] && break
+                echo "Still deleting... (${r}/36)"
+                sleep 10
+              done
+              continue
+            fi
+
+            if echo "$sync_out" | grep -qi 'another operation is already in progress'; then
+              echo "Terminating stuck sync operation and retrying..."
+              argocd app terminate-op "${ARGOCD_APP_NAME}" --insecure || true
+            fi
             sleep $((attempt * 10))
           done
+
+          if [ "$SYNC_OK" != "true" ]; then
+            echo "::error::argocd app sync did not succeed after 5 attempts"
+            exit 1
+          fi
 
           argocd app wait "${ARGOCD_APP_NAME}" --health --timeout 300 --insecure || true
 
