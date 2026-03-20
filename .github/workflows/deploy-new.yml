@@ -53,9 +53,10 @@ jobs:
           VERSION="${{ steps.next-version.outputs.version }}"
           mkdir -p ".helm-releases/${VERSION}"
           cp "helm/chat-app/values.yaml" ".helm-releases/${VERSION}/values.yaml"
+          cp "helm/chat-app/values-application-kind.yaml" ".helm-releases/${VERSION}/values-application-kind.yaml"
 
-          # Update only the snapshot (Argo CD is updated via argocd CLI below)
-          sed -i -E "s/^(\\s*tag:)\\s*.*/\\1 ${VERSION}/" ".helm-releases/${VERSION}/values.yaml"
+          # Snapshot: image.tag lives in values-application-kind.yaml (Argo Kind overlay)
+          sed -i -E "s/^(\\s*tag:)\\s*.*/\\1 ${VERSION}/" ".helm-releases/${VERSION}/values-application-kind.yaml"
 
       - name: Build and push Docker image (version + latest)
         uses: docker/build-push-action@v5

@@ -1,0 +1,12 @@
+# -----------------------------------------------------------------------------
+# Local Helm / reference overlay (image + secret). Argo EKS deploy uses inline
+# helm.values in argocd/application.yaml — keep in sync or edit Application YAML.
+# CI often overrides: argocd app set chat-app --helm-set image.tag=... --helm-set image.repository=...
+# -----------------------------------------------------------------------------
+image:
+  repository: sardarabdulwakeel/chat-app
+  tag: latest
+  pullPolicy: Always
+
+secret:
+  jwtSecret: "CHANGE_ME_IN_PRODUCTION"

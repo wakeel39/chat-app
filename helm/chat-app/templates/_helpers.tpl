@@ -19,12 +19,14 @@ Common labels
 helm.sh/chart: {{ include "chat-app.chart" . }}
 app.kubernetes.io/name: {{ include "chat-app.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/version: {{ .Values.image.tag | quote }}
+app.kubernetes.io/version: {{ required "image.tag is required (use values-application-kind.yaml or values-application-eks.yaml)" .Values.image.tag | quote }}
 {{- end }}
 
 {{/*
-Full image for app
+Full image for app (repository/tag supplied via Argo CD valueFiles overlays)
 */}}
 {{- define "chat-app.image" -}}
-{{- printf "%s:%s" .Values.image.repository ( .Values.image.tag | default .Chart.AppVersion ) }}
+{{- $repo := required "image.repository is required (use values-application-kind.yaml or values-application-eks.yaml)" .Values.image.repository }}
+{{- $tag := required "image.tag is required (use values-application-kind.yaml or values-application-eks.yaml)" .Values.image.tag }}
+{{- printf "%s:%s" $repo $tag }}
 {{- end }}

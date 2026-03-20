@@ -1,0 +1,12 @@
+# -----------------------------------------------------------------------------
+# Local Helm / reference overlay (image + secret). Argo Kind deploy uses inline
+# helm.values in argocd/application-kind.yaml — keep this file in sync when you
+# change Kind image defaults, or edit the Application manifest directly.
+# -----------------------------------------------------------------------------
+image:
+  repository: sardarabdulwakeel/chat-app
+  tag: latest
+  pullPolicy: Always
+
+secret:
+  jwtSecret: "dev-secret-change-me"
