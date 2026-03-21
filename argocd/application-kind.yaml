@@ -1,6 +1,12 @@
 # Argo CD Application (Kind) — structure aligned with inline helm.values + parameters + retry (feedus-style).
 # Apply: kubectl apply -f argocd/application-kind.yaml
 # CI: sed replaces <RELEASE_TAG> in this file; argocd app set --helm-set image.tag=... still applies on top.
+#
+# EC2 public access on port 3000 (this project’s Kind host):
+#   1) Create Kind with kind/kind-config-ec2-public-3000.yaml (maps host :3000 → node NodePort 30080).
+#   2) Service below uses type NodePort + nodePort 30080 (required range 30000–32767).
+#   3) Open EC2 security group: inbound TCP 3000.
+#   4) Open: http://ec2-35-173-185-92.compute-1.amazonaws.com:3000
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -33,13 +39,14 @@ spec:
           tag: latest
           pullPolicy: Always
         service:
-          type: ClusterIP
+          type: NodePort
           port: 80
           targetPort: 3000
+          nodePort: 30080
         ingress:
           enabled: false
           className: nginx
-          host: chat.example.com
+          host: ec2-35-173-185-92.compute-1.amazonaws.com
           annotations: {}
           tls: false
           tlsSecretName: chat-app-tls

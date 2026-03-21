@@ -152,6 +152,8 @@ jobs:
           argocd app set "${ARGOCD_APP_NAME}" \
             --helm-set image.repository="${DOCKERHUB_IMAGE}" \
             --helm-set image.tag="${VERSION}" \
+            --helm-set service.type=NodePort \
+            --helm-set service.nodePort=30080 \
             --insecure
 
           SYNC_OK=false

@@ -1,0 +1,24 @@
+# Kind on EC2: expose the chat app on the instance public port 3000.
+#
+# Kubernetes NodePorts must be 30000–32767, so the Service uses nodePort 30080.
+# This mapping forwards host TCP 3000 on the EC2 instance → Kind node TCP 30080.
+#
+# Usage:
+#   kind create cluster --name chat-app --config kind/kind-config-ec2-public-3000.yaml
+#
+# With Argo/Helm (application-kind.yaml): service type NodePort, nodePort 30080.
+#
+# Then open (replace with your public DNS if it differs):
+#   http://ec2-35-173-185-92.compute-1.amazonaws.com:3000
+#
+# EC2 security group: inbound rule TCP 3000 (source: your IP or 0.0.0.0/0 for testing).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      # listenAddress: bind on all interfaces so the EC2 public IP/DNS works (not only localhost)
+      - containerPort: 30080
+        hostPort: 3000
+        listenAddress: "0.0.0.0"
+        protocol: TCP

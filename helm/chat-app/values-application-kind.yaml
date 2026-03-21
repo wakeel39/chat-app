@@ -3,6 +3,13 @@
 # helm.values in argocd/application-kind.yaml — keep this file in sync when you
 # change Kind image defaults, or edit the Application manifest directly.
 # -----------------------------------------------------------------------------
+# Align service with application-kind.yaml when using EC2 public port 3000 + Kind config.
+service:
+  type: NodePort
+  port: 80
+  targetPort: 3000
+  nodePort: 30080
+
 image:
   repository: sardarabdulwakeel/chat-app
   tag: latest

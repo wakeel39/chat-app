@@ -11,12 +11,12 @@
 # App replica count
 replicaCount: 1
 
-# Main chat-app Service (ClusterIP in-cluster; NodePort for EC2 + external AWS LB)
+# Main chat-app Service — Argo Kind uses NodePort 30080 + Kind hostPort 3000 (see kind/kind-config-ec2-public-3000.yaml)
 service:
   type: ClusterIP
   port: 80
   targetPort: 3000
-  # When type is NodePort, omit for auto-assigned port or set 30000-32767 for a fixed port (ALB/NLB target group)
+  # For EC2 :3000 access with Kind: use NodePort 30080 (see argocd/application-kind.yaml)
   nodePort: null
 
 # Optional Ingress (e.g. ingress-nginx on NodePort; still ClusterIP behind controller)
