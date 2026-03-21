@@ -149,7 +149,10 @@ jobs:
             argocd app create --file "${RENDERED}" --upsert --insecure
           fi
 
+          # Point Argo CD at the new Git tag so the UI shows the correct version (targetRevision),
+          # not only the Docker image tag via helm-set.
           argocd app set "${ARGOCD_APP_NAME}" \
+            --revision "${TAG}" \
             --helm-set image.repository="${DOCKERHUB_IMAGE}" \
             --helm-set image.tag="${VERSION}" \
             --helm-set service.type=NodePort \
