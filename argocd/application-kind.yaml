@@ -1,6 +1,7 @@
 # Argo CD Application (Kind) — structure aligned with inline helm.values + parameters + retry (feedus-style).
 # Apply: kubectl apply -f argocd/application-kind.yaml
-# CI: sed replaces <RELEASE_TAG> in this file; argocd app set --helm-set image.tag=... still applies on top.
+# CI: sed replaces <RELEASE_TAG>; deploy-new also runs: argocd app set --revision <tag> so the Argo UI
+# shows the current Git version (not only helm-set image.tag).
 #
 # EC2 public access on port 3000 (this project’s Kind host):
 #   1) Create Kind with kind/kind-config-ec2-public-3000.yaml (maps host :3000 → node NodePort 30080).
