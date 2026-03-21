@@ -17,6 +17,8 @@ apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
     extraPortMappings:
+      # listenAddress: bind on all interfaces so the EC2 public IP/DNS works (not only localhost)
       - containerPort: 30080
         hostPort: 3000
+        listenAddress: "0.0.0.0"
         protocol: TCP
