@@ -447,6 +447,20 @@ helm version
 
 ### 7.7 Create the Kind cluster on EC2
 
+**Option C – Public URL on port 3000 (this repo, e.g. `ec2-35-173-185-92.compute-1.amazonaws.com:3000`):**
+
+Use the checked-in Kind config (maps **host 3000 → NodePort 30080** inside the node):
+
+```bash
+kind create cluster --name chat-app --config kind/kind-config-ec2-public-3000.yaml
+```
+
+Then deploy with **NodePort 30080** for `chat-app` (already set in `argocd/application-kind.yaml` when you sync that Application). On the **EC2 security group**, allow **inbound TCP 3000**. Open:
+
+`http://ec2-35-173-185-92.compute-1.amazonaws.com:3000`
+
+*(Replace the hostname if your instance has a different public DNS.)*
+
 **Option A – Default cluster (use port-forward to access the app):**
 
 ```bash
