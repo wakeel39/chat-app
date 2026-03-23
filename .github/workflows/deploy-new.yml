@@ -115,7 +115,7 @@ jobs:
           sed "s|<RELEASE_TAG>|${TAG}|g" "argocd/application-kind.yaml" > "${RENDERED}"
 
           # LOGIN AND DEPLOY TO ARGOCD
-          argocd login "${{ secrets.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
+          argocd login "${{ vars.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
           argocd account get-user-info --insecure
 
           # Issue: "application is deleting" — the Application CR has metadata.deletionTimestamp set.
