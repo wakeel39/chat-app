@@ -6,7 +6,8 @@ on:
 env:
   DOCKERHUB_IMAGE: sardarabdulwakeel/chat-app
   ARGOCD_APP_NAME: chat-app
-  ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+  # Host:port that reaches argocd-server (e.g. 35.x.x.x:8080). If empty, set GitHub variable ARGOCD_SERVER.
+  ARGOCD_SERVER: ${{ vars.ARGOCD_SERVER }}
 
 jobs:
   deploy:
@@ -108,15 +109,21 @@ jobs:
 
       - name: Login and update Argo CD (set new image tag)
         shell: bash
+        env:
+          ARGOCD_PASSWORD: ${{ secrets.ARGOCD_PASSWORD }}
         run: |
           VERSION="${{ steps.next-version.outputs.version }}"
           TAG="v${VERSION}"
           RENDERED="/tmp/application-kind.rendered.yaml"
           sed "s|<RELEASE_TAG>|${TAG}|g" "argocd/application-kind.yaml" > "${RENDERED}"
 
-          # LOGIN AND DEPLOY TO ARGOCD
-          argocd login "${{ vars.ARGOCD_SERVER }}" --username admin --password "${{ secrets.ARGOCD_PASSWORD }}" --insecure
-          argocd account get-user-info --insecure
+          # After login on :8080 (or any non-443 port), the CLI can still dial :443 unless we pin server + grpc-web.
+          # See: https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd_login/
+          unset HTTP_PROXY HTTPS_PROXY http_proxy https_proxy ALL_PROXY all_proxy 2>/dev/null || true
+          export ARGOCD_OPTS="--server ${ARGOCD_SERVER} --insecure --grpc-web"
+
+          argocd login "${ARGOCD_SERVER}" --username admin --password "${ARGOCD_PASSWORD}" --insecure --grpc-web
+          argocd account get-user-info
 
           # Issue: "application is deleting" — the Application CR has metadata.deletionTimestamp set.
           # argocd app sync / app set are rejected until deletion finishes OR finalizers are cleared.
