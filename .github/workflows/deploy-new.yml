@@ -121,30 +121,7 @@ jobs:
           # Issue: "application is deleting" — the Application CR has metadata.deletionTimestamp set.
           # argocd app sync / app set are rejected until deletion finishes OR finalizers are cleared.
           # terminate-op does not help (no sync operation is running).
-          echo "Checking Application is not stuck in deleting state..."
-          for round in $(seq 1 36); do
-            if ! raw=$(argocd app get "${ARGOCD_APP_NAME}" -o json --insecure 2>/dev/null); then
-              echo "Application not found — will create."
-              break
-            fi
-            dt=$(echo "$raw" | jq -r '.metadata.deletionTimestamp // empty')
-            if [ -z "$dt" ]; then
-              echo "Application exists and is active."
-              break
-            fi
-            echo "Application is deleting (deletionTimestamp=${dt}); waiting 10s (${round}/36)..."
-            sleep 10
-          done
-
-          if raw=$(argocd app get "${ARGOCD_APP_NAME}" -o json --insecure 2>/dev/null); then
-            dt=$(echo "$raw" | jq -r '.metadata.deletionTimestamp // empty')
-            if [ -n "$dt" ]; then
-              echo "::error::Application still in deleting state after wait. Clear finalizers (cluster-admin), then re-run:"
-              echo "  kubectl patch application ${ARGOCD_APP_NAME} -n argocd -p '{\"metadata\":{\"finalizers\":[]}}' --type=merge"
-              exit 1
-            fi
-          fi
-
+          
           if ! argocd app get "${ARGOCD_APP_NAME}" --insecure >/dev/null 2>&1; then
             argocd app create --file "${RENDERED}" --upsert --insecure
           fi
@@ -155,8 +132,6 @@ jobs:
             --revision "${TAG}" \
             --helm-set image.repository="${DOCKERHUB_IMAGE}" \
             --helm-set image.tag="${VERSION}" \
-            --helm-set service.type=NodePort \
-            --helm-set service.nodePort=30080 \
             --insecure
 
           SYNC_OK=false
