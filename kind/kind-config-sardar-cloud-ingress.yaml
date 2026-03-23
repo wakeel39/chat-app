@@ -1,0 +1,22 @@
+# Kind on EC2: expose ingress-nginx HTTP on host port 80 (domain e.g. chat.sardar.cloud → EC2 IP).
+#
+# Install ingress-nginx first with HTTP NodePort 30080, for example:
+#   helm upgrade --install ingress-nginx ingress-nginx \
+#     --repo https://kubernetes.github.io/ingress-nginx \
+#     --namespace ingress-nginx --create-namespace \
+#     --set controller.service.type=NodePort \
+#     --set controller.service.nodePorts.http=30080 \
+#     --set controller.service.nodePorts.https=30443
+#
+# Then create the cluster with this config so browsers can use http://chat.sardar.cloud (port 80).
+#
+# See: docs/KIND-SARDAR-CLOUD-INGRESS.md
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 80
+        listenAddress: "0.0.0.0"
+        protocol: TCP

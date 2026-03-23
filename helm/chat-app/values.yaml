@@ -8,23 +8,35 @@
 #   helm template chat-app . -f values.yaml -f values-application-kind.yaml
 # -----------------------------------------------------------------------------
 
-# App replica count
+# App replica count (ignored when autoscaling.enabled; use autoscaling.minReplicas)
 replicaCount: 1
 
-# Main chat-app Service — Argo Kind uses NodePort 30080 + Kind hostPort 3000 (see kind/kind-config-ec2-public-3000.yaml)
+# Horizontal Pod Autoscaler (requires metrics-server on the cluster)
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Main chat-app Service — use ClusterIP when ingress.serviceClusterIPOnly + ingress enabled (traffic via ingress-nginx)
 service:
   type: ClusterIP
   port: 80
   targetPort: 3000
-  # For EC2 :3000 access with Kind: use NodePort 30080 (see argocd/application-kind.yaml)
   nodePort: null
 
-# Optional Ingress (e.g. ingress-nginx on NodePort; still ClusterIP behind controller)
+# Ingress = L7 entry (install ingress-nginx on Kind; DNS A/AAAA for host → EC2). Acts as API gateway + load balancer to pods.
 ingress:
   enabled: false
   className: nginx
-  host: chat.example.com
-  annotations: {}
+  host: chat.sardar.cloud
+  # When true with ingress.enabled, Service type is forced to ClusterIP (no NodePort on chat-app).
+  serviceClusterIPOnly: true
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
   tls: false
   tlsSecretName: chat-app-tls
 

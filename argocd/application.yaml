@@ -28,6 +28,12 @@ spec:
           value: "1"
       values: |
         replicaCount: 1
+        autoscaling:
+          enabled: false
+          minReplicas: 1
+          maxReplicas: 3
+          targetCPUUtilizationPercentage: 70
+          targetMemoryUtilizationPercentage: 0
         image:
           repository: sardarabdulwakeel/chat-app
           tag: latest
@@ -39,7 +45,8 @@ spec:
         ingress:
           enabled: false
           className: nginx
-          host: chat.example.com
+          host: api.sardar.cloud
+          serviceClusterIPOnly: true
           annotations: {}
           tls: false
           tlsSecretName: chat-app-tls

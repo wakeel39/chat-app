@@ -3,11 +3,13 @@
 # CI: sed replaces <RELEASE_TAG>; deploy-new also runs: argocd app set --revision <tag> so the Argo UI
 # shows the current Git version (not only helm-set image.tag).
 #
-# EC2 public access on port 3000 (this project’s Kind host):
-#   1) Create Kind with kind/kind-config-ec2-public-3000.yaml (maps host :3000 → node NodePort 30080).
-#   2) Service below uses type NodePort + nodePort 30080 (required range 30000–32767).
-#   3) Open EC2 security group: inbound TCP 3000.
-#   4) Open: http://ec2-35-173-185-92.compute-1.amazonaws.com:3000
+# Kind + EC2 + domain sardar.cloud:
+#   1) Install ingress-nginx (see docs/KIND-SARDAR-CLOUD-INGRESS.md) — L7 load balancer to chat-app pods.
+#   2) Install metrics-server (required for HPA horizontal scaling).
+#   3) Create Kind with kind/kind-config-sardar-cloud-ingress.yaml (host :80 → ingress NodePort 30080).
+#   4) Route53: A/AAAA chat.sardar.cloud → EC2 public IP (or ALB if you front with AWS LB).
+#   5) EC2 security group: inbound TCP 80 (and 443 if TLS).
+#   6) Open: http://chat.sardar.cloud
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -32,23 +34,35 @@ spec:
         - name: resources.limits.memory
           value: "512Mi"
         - name: replicaCount
-          value: "1"
+          value: "2"
       values: |
-        replicaCount: 1
+        replicaCount: 2
+        autoscaling:
+          enabled: true
+          minReplicas: 2
+          maxReplicas: 10
+          targetCPUUtilizationPercentage: 70
+          targetMemoryUtilizationPercentage: 80
         image:
           repository: sardarabdulwakeel/chat-app
           tag: latest
           pullPolicy: Always
         service:
-          type: NodePort
+          type: ClusterIP
           port: 80
           targetPort: 3000
-          nodePort: 30080
         ingress:
-          enabled: false
+          enabled: true
           className: nginx
-          host: ec2-35-173-185-92.compute-1.amazonaws.com
-          annotations: {}
+          host: chat.sardar.cloud
+          serviceClusterIPOnly: true
+          annotations:
+            nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+            nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+            nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+            nginx.ingress.kubernetes.io/affinity: "cookie"
+            nginx.ingress.kubernetes.io/session-cookie-name: "chat-app-affinity"
+            nginx.ingress.kubernetes.io/session-cookie-hash: "sha1"
           tls: false
           tlsSecretName: chat-app-tls
         config:
