@@ -2,6 +2,20 @@
 
 Node.js real-time chat using **Express**, **Socket.io**, **MongoDB**, and **Redis**, with **JWT** authentication.
 
+## Screenshots
+
+_Add image files under [`docs/screenshots/`](docs/screenshots/) using the filenames below — GitHub will render them here._
+
+| | |
+|---:|---|
+| **Chat UI** | ![Chat application UI](docs/screenshots/01-app-chat-ui.png) |
+| **CI/CD — GitHub Actions** | ![GitHub Actions workflow](docs/screenshots/02-github-actions.png) |
+| **GitOps — Argo CD** | ![Argo CD synced application](docs/screenshots/03-argocd-synced.png) |
+| **Kubernetes (optional)** | ![kubectl or cluster view](docs/screenshots/04-kubectl-or-helm.png) |
+| **Architecture (optional)** | ![Architecture diagram](docs/screenshots/05-architecture.png) |
+
+> **LinkedIn:** A ready-to-post write-up is in [`docs/LINKEDIN-POST.md`](docs/LINKEDIN-POST.md) — copy the post, then attach your screenshots when publishing.
+
 ## Stack
 
 - **Backend:** Node.js, Express, Socket.io
